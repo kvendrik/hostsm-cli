@@ -108,9 +108,11 @@ const commands = {
   help() {
     console.log(`
       Usage: hostsm <command>
-      add       add a new host
-      remove    remove a host
-      set       set a new alias for an existing host
+
+      Commands:
+        add       add a new host
+        remove    remove a host
+        set       set a new alias for an existing host
     `);
     process.exit(0);
   }
