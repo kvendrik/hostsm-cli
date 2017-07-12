@@ -4,6 +4,15 @@ process.chdir(__dirname);
 
 const fs = require('fs');
 const CONFIG_PATH = './config.json';
+
+if (!fs.existsSync(CONFIG_PATH)) {
+  // if no config file
+  // write default config
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify({ hostsPath: '/etc/hosts' }), function (err) {
+    if (err) throw err;
+  });
+}
+
 const CONFIG = JSON.parse( fs.readFileSync(CONFIG_PATH, 'utf-8') );
 const HOSTS_FILE_PATH = CONFIG.hostsPath;
 
@@ -161,9 +170,11 @@ const command = args[2];
 const handler = commands[command];
 
 if (!command || !handler) {
+  // no command or command handler
+  // print help
   commands.help();
 }
 
+// get clean arguments for handler
 const cleanArgs = args.splice(3, args.length);
-
 handler(...cleanArgs);
