@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 
+process.chdir(__dirname);
+
 const fs = require('fs');
+const CONFIG_PATH = './config.json';
+const CONFIG = JSON.parse( fs.readFileSync(CONFIG_PATH, 'utf-8') );
+const HOSTS_FILE_PATH = CONFIG.hostsPath;
 
 const fileActions = {
   getAllHostsAsJSON() {
-    return fs.readFileSync('/etc/hosts', 'utf-8')
+    return fs.readFileSync(HOSTS_FILE_PATH, 'utf-8')
       .split(/\n/)
       .map((str) => {
         const parts = str.match(/([^\s]+)\s+([^\s]+)/);
@@ -21,7 +26,7 @@ const fileActions = {
   },
 
   addHostToFile(host, alias) {
-    fs.appendFileSync('/etc/hosts', `\n${host} ${alias}\n`, function (err) {
+    fs.appendFileSync(HOSTS_FILE_PATH, `${host} ${alias}\n`, function (err) {
       if (err) throw err;
       console.log('Saved!');
       process.exit(0);
@@ -29,9 +34,9 @@ const fileActions = {
   },
 
   removeHostFromFile(host, alias) {
-    const hostsStr = fs.readFileSync('/etc/hosts', 'utf-8');
-    const newHostsStr = hostsStr.replace(new RegExp(`${host}\\s+${alias}`), '');
-    fs.writeFileSync('/etc/hosts', newHostsStr, function (err) {
+    const hostsStr = fs.readFileSync(HOSTS_FILE_PATH, 'utf-8');
+    const newHostsStr = hostsStr.replace(new RegExp(`${host}\\s+${alias}\\n`), '');
+    fs.writeFileSync(HOSTS_FILE_PATH, newHostsStr, function (err) {
       if (err) throw err;
       console.log('Saved!');
       process.exit(0);
@@ -105,6 +110,38 @@ const commands = {
     process.exit(0);
   },
 
+  config(key, newValue = null) {
+    if (!key) {
+      console.log('Usage: hostsm config (print|<configKey>) <newValue>');
+      process.exit(1);
+    }
+
+    if (key === 'print') {
+      console.log(CONFIG);
+      process.exit(0);
+    }
+
+    const allowedFields = Object.keys(CONFIG);
+
+    if (!allowedFields.includes(key)) {
+      console.log(`${key} is not an allowed config key. The allowed config keys are: ${allowedFields.join(', ')}`);
+      process.exit(0);
+    }
+
+    if (!newValue) {
+      console.log(CONFIG[key]);
+      process.exit(0);
+    }
+
+    CONFIG[key] = newValue;
+
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(CONFIG), function (err) {
+      if (err) throw err;
+      console.log('Saved!');
+      process.exit(0);
+    });
+  },
+
   help() {
     console.log(`
       Usage: hostsm <command>
@@ -113,6 +150,7 @@ const commands = {
         add       add a new host
         remove    remove a host
         set       set a new alias for an existing host
+        config    print or change a config setting
     `);
     process.exit(0);
   }
