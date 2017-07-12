@@ -7,6 +7,7 @@ Commands:
   set       set a new alias for an existing host
   config    print or change a config setting
   version   print the cli version
+  help      print this help message
 ```
 
 Try it without cloning:
