@@ -1,0 +1,129 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+
+const fileActions = {
+  getAllHostsAsJSON() {
+    return fs.readFileSync('/etc/hosts', 'utf-8')
+      .split(/\n/)
+      .map((str) => {
+        const parts = str.match(/([^\s]+)\s+([^\s]+)/);
+        if (!parts || parts.length < 3) {
+          // no match
+          return null;
+        }
+        return {
+          host: parts[1],
+          alias: parts[2]
+        };
+      })
+      .filter((row) => row !== null);
+  },
+
+  addHostToFile(host, alias) {
+    fs.appendFileSync('/etc/hosts', `\n${host} ${alias}\n`, function (err) {
+      if (err) throw err;
+      console.log('Saved!');
+      process.exit(0);
+    });
+  },
+
+  removeHostFromFile(host, alias) {
+    const hostsStr = fs.readFileSync('/etc/hosts', 'utf-8');
+    const newHostsStr = hostsStr.replace(new RegExp(`${host}\\s+${alias}`), '');
+    fs.writeFileSync('/etc/hosts', newHostsStr, function (err) {
+      if (err) throw err;
+      console.log('Saved!');
+      process.exit(0);
+    });
+  },
+
+  getHostByAlias(alias) {
+    const hosts = this.getAllHostsAsJSON();
+    for (const host of hosts) {
+      if (host.alias === alias) {
+        // record exists
+        return host;
+      }
+    }
+    return null;
+  }
+};
+
+const commands = {
+  add(host, alias) {
+    if (!host || !alias) {
+      console.log('Usage: hostsm add <host> <alias>');
+      process.exit(1);
+    }
+    const hosts = fileActions.getAllHostsAsJSON();
+    const exists = fileActions.getHostByAlias(alias);
+    if (exists) {
+      console.log('Record exists');
+      process.exit(1);
+    }
+    fileActions.addHostToFile(host, alias);
+  },
+
+  remove(alias) {
+    if (!alias) {
+      console.log('Usage: hostsm remove <alias>');
+      process.exit(1);
+    }
+    const hosts = fileActions.getAllHostsAsJSON();
+    let match = null;
+
+    for (const host of hosts) {
+      if (host.alias === alias) {
+        // record exists
+        match = host;
+      }
+    }
+
+    if (match === null) {
+      console.log('Record does not exist');
+      process.exit(1);
+      return;
+    }
+
+    fileActions.removeHostFromFile(match.host, match.alias);
+  },
+
+  set(alias, newAlias) {
+    if (!alias || !newAlias) {
+      console.log('Usage: hostsm set <alias> <newAlias>');
+      process.exit(1);
+    }
+    const hosts = fileActions.getAllHostsAsJSON();
+    const foundHost = fileActions.getHostByAlias(alias);
+    if (!foundHost) {
+      console.log('Host not found');
+      process.exit(1);
+    }
+    commands.remove(alias);
+    commands.add(foundHost.host, newAlias);
+    process.exit(0);
+  },
+
+  help() {
+    console.log(`
+      Usage: hostsm <command>
+      add       add a new host
+      remove    remove a host
+      set       set a new alias for an existing host
+    `);
+    process.exit(0);
+  }
+};
+
+const args = process.argv;
+const command = args[2];
+const handler = commands[command];
+
+if (!command || !handler) {
+  commands.help();
+}
+
+const cleanArgs = args.splice(3, args.length);
+
+handler(...cleanArgs);
