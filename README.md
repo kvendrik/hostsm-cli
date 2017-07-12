@@ -9,8 +9,3 @@ Commands:
   version   print the cli version
   help      print this help message
 ```
-
-Try it without cloning:
-```
-curl -s https://raw.githubusercontent.com/kvendrik/hostsm-cli/master/hostsm | node /dev/stdin help
-```
