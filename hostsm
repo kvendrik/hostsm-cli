@@ -3,6 +3,7 @@
 process.chdir(__dirname);
 
 const fs = require('fs');
+
 const CONFIG_PATH = './config.json';
 
 if (!fs.existsSync(CONFIG_PATH)) {
@@ -151,6 +152,11 @@ const commands = {
     });
   },
 
+  version() {
+    console.log('v1.0.0');
+    process.exit(0);
+  },
+
   help() {
     console.log(`
       Usage: hostsm <command>
@@ -160,6 +166,7 @@ const commands = {
         remove    remove a host
         set       set a new alias for an existing host
         config    print or change a config setting
+        version   print the cli version
     `);
     process.exit(0);
   }
