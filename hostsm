@@ -22,30 +22,60 @@ const fileActions = {
     return fs.readFileSync(HOSTS_FILE_PATH, 'utf-8')
       .split(/\n/)
       .map((str) => {
-        const parts = str.match(/([^\s]+)\s+([^\s]+)/);
+        const parts = str.match(/([^\s]+)\s+(.+)$/);
         if (!parts || parts.length < 3) {
           // no match
           return null;
         }
         return {
-          host: parts[1],
-          alias: parts[2]
+          ip: parts[1],
+          hosts: parts[2].split(' ').filter((part) => part)
         };
       })
-      .filter((row) => row !== null);
+      .filter((row) => {
+        if (row === null) {
+          return false;
+        }
+        if (row.ip.match(/[0-9]/) === null) {
+          return false;
+        }
+        return true;
+      });
   },
 
-  addHostToFile(host, alias) {
-    fs.appendFileSync(HOSTS_FILE_PATH, `${host} ${alias}\n`, function (err) {
+  writeHostsToFile(hosts) {
+    let fileStr = '';
+
+    for (const host of hosts) {
+      fileStr += `${host.ip} ${host.hosts.join(' ')}\n`;
+    }
+
+    fs.writeFileSync(HOSTS_FILE_PATH, fileStr, function (err) {
       if (err) throw err;
       console.log('Saved!');
       process.exit(0);
     });
   },
 
-  removeHostFromFile(host, alias) {
+  addHostToFile(ip, hosts) {
+    fs.appendFileSync(HOSTS_FILE_PATH, `${ip} ${hosts.join(' ')}\n`, function (err) {
+      if (err) throw err;
+      console.log('Saved!');
+      process.exit(0);
+    });
+  },
+
+  removeHostFromFile(ip, hosts, rmHost) {
     const hostsStr = fs.readFileSync(HOSTS_FILE_PATH, 'utf-8');
-    const newHostsStr = hostsStr.replace(new RegExp(`${host}\\s+${alias}\\n`), '');
+    const newHosts = hosts.filter((host) => host !== rmHost);
+    let newRowStr = '';
+
+    if (newHosts.length > 0) {
+      newRowStr = `${ip} ${newHosts.join(' ')}\n`;
+    }
+
+    const newHostsStr = hostsStr.replace(new RegExp(`${ip}\\s+${hosts.join(' ')}\\n`), newRowStr);
+
     fs.writeFileSync(HOSTS_FILE_PATH, newHostsStr, function (err) {
       if (err) throw err;
       console.log('Saved!');
@@ -53,10 +83,10 @@ const fileActions = {
     });
   },
 
-  getHostByAlias(alias) {
+  getHost(findHost) {
     const hosts = this.getAllHostsAsJSON();
     for (const host of hosts) {
-      if (host.alias === alias) {
+      if (host.hosts.includes(findHost)) {
         // record exists
         return host;
       }
@@ -66,34 +96,30 @@ const fileActions = {
 };
 
 const commands = {
-  add(host, alias) {
-    if (!host || !alias) {
-      console.log('Usage: hostsm add <host> <alias>');
+  add(ip, ...hosts) {
+    if (!ip || !hosts) {
+      console.log('Usage: hostsm add <ip> <...hosts>');
       process.exit(1);
     }
-    const hosts = fileActions.getAllHostsAsJSON();
-    const exists = fileActions.getHostByAlias(alias);
-    if (exists) {
-      console.log('Record exists');
-      process.exit(1);
-    }
-    fileActions.addHostToFile(host, alias);
-  },
-
-  remove(alias) {
-    if (!alias) {
-      console.log('Usage: hostsm remove <alias>');
-      process.exit(1);
-    }
-    const hosts = fileActions.getAllHostsAsJSON();
-    let match = null;
 
     for (const host of hosts) {
-      if (host.alias === alias) {
-        // record exists
-        match = host;
+      const exists = fileActions.getHost(host);
+      if (exists) {
+        console.log('Record exists');
+        process.exit(1);
       }
     }
+
+    fileActions.addHostToFile(ip, hosts);
+  },
+
+  rm(host) {
+    if (!host) {
+      console.log('Usage: hostsm remove <host>');
+      process.exit(1);
+    }
+
+    const match = fileActions.getHost(host);
 
     if (match === null) {
       console.log('Record does not exist');
@@ -101,23 +127,26 @@ const commands = {
       return;
     }
 
-    fileActions.removeHostFromFile(match.host, match.alias);
+    fileActions.removeHostFromFile(match.ip, match.hosts, host);
   },
 
-  set(alias, newAlias) {
-    if (!alias || !newAlias) {
-      console.log('Usage: hostsm set <alias> <newAlias>');
-      process.exit(1);
+  cleanup() {
+    const rows = fileActions.getAllHostsAsJSON();
+    const newHosts = {};
+    const newHostsArr = [];
+
+    for (const {ip, hosts} of rows) {
+      if (!newHosts[ip]) {
+        newHosts[ip] = [];
+      }
+      newHosts[ip].push(...hosts);
     }
-    const hosts = fileActions.getAllHostsAsJSON();
-    const foundHost = fileActions.getHostByAlias(alias);
-    if (!foundHost) {
-      console.log('Host not found');
-      process.exit(1);
+
+    for (const ip in newHosts) {
+      newHostsArr.push({ip, hosts: newHosts[ip]});
     }
-    commands.remove(alias);
-    commands.add(foundHost.host, newAlias);
-    process.exit(0);
+
+    fileActions.writeHostsToFile(newHostsArr);
   },
 
   config(key, newValue = null) {
@@ -152,7 +181,7 @@ const commands = {
     });
   },
 
-  print() {
+  list() {
     const hosts = fileActions.getAllHostsAsJSON();
     console.log(hosts);
     process.exit(0);
@@ -168,10 +197,10 @@ const commands = {
       Usage: hostsm <command>
 
       Commands:
-        print     print all hosts
+        list      list all hosts
         add       add a new host
-        remove    remove a host
-        set       set a new alias for an existing host
+        rm        remove a host
+        cleanup   clean up hosts file
         config    print or change a config setting
         version   print the cli version
         help      print this help message
